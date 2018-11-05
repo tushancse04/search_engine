@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html>
+<head>
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>
+<script src="PorterStemmer1980.min.js"></script>
+<script src="doc_url_map.js"></script>
+<script src="inv_idx_dic.js"></script>
+<script src="search.js"></script>
+<link rel="stylesheet" href="style.css">
+<script>
+doc_lengths = {};
+ranks = [];
+$(document).ready(function(){
+
+
+
+	doc_lengths = get_doc_lengths();
+	$( "#btn_search" ).click(function() {
+  		links = get_links();
+  		generate_table(links);
+	});
+
+});
+
+
+function generate_table(links)
+{ 
+	$("#tbl_list").empty();
+	$('#tbl_list').append('<tr><th>Rank</th><th>Score</th><th>Link</th></tr>');
+	count = 0;
+	for(i in links)
+	{
+		if(i > 99)
+			break;
+		count += 1;
+		link = links[i];
+		$('#tbl_list').append('<tr><td>' + count + '</td><td>' + ranks[i] + '</td><td><a href=' + link + '>' + link + '</a></td></tr>');
+	}
+}
+
+function get_doc_lengths()
+{
+	doc_lengths = {};
+	for(term in inv_idx_dic)
+	{
+		df = inv_idx_dic[term][0];
+		for(doc in inv_idx_dic[term][1])
+		{
+			if(!(doc in doc_lengths))
+				doc_lengths[doc] = 0;
+			tf = inv_idx_dic[term][1][doc];
+			doc_lengths[doc] += tf*tf*df*df;
+		}
+	}
+	for(doc in doc_lengths)
+	{
+		doc_lengths[doc] = Math.sqrt(doc_lengths[doc]);
+	}
+	return doc_lengths;
+}
+
+function get_links()
+{
+	query = $('#txt_search').val();
+	words = query.split(' ');
+	result = {}
+	for(i = 0; i<words.length; i++)
+		words[i] = stemmer(words[i]);
+	query_doc = {};
+	for(i in words)
+	{
+		word = words[i];
+		if(!(word in query_doc))
+		{
+			query_doc[word] = 0;
+		}
+		query_doc[word] += 1;
+	}
+	query_length = 0;
+	for(term in query_doc)
+	{
+		query_length += query_doc[term] * query_doc[term];
+	}
+	query_length = Math.sqrt(query_length);
+
+	N = Object.keys(doc_url_map).length
+	for(t in query_doc)
+	{
+		console.log(t);
+		if (t in inv_idx_dic)
+		{
+			df = Math.log(N/inv_idx_dic[t][0]);
+			for(doc in inv_idx_dic[t][1])
+			{
+				if(doc in result)
+				{
+					result[doc] += df * inv_idx_dic[t][1][doc] * query_doc[t];
+				}
+				else
+					result[doc] = df * inv_idx_dic[t][1][doc] * query_doc[t];
+			}
+		}
+	}
+
+	docs = [];
+	ranks = [];
+	for(doc in result)
+	{
+		if (result[doc] <= 0)
+			delete result[doc];
+		else
+		{
+			docs.push(doc);
+			ranks.push(result[doc]/(query_length*doc_lengths[doc]));
+		}
+	}
+
+	for(i = 0; i<docs.length; i++)
+	{
+		for(j = i+1; j<docs.length; j++)
+		{
+			if(ranks[i] < ranks[j])
+			{
+				temp = ranks[i];
+				ranks[i] = ranks[j];
+				ranks[j] = temp;
+				
+				temp = docs[i];
+				docs[i] = docs[j];
+				docs[j] = temp;
+			}
+		}
+	}
+
+	for(i in docs)
+	{
+		docs[i] = doc_url_map[docs[i]];
+	}
+
+	return docs.filter( onlyUnique);
+
+}
+
+function onlyUnique(value, index, self) { 
+    return self.indexOf(value) === index;
+}
+
+
+</script>
+</head>
+<body>
+<div>
+	<input type="text" id="txt_search"></input>
+	<button id='btn_search'>Search</button>
+</div>
+<div id="div_search_list">
+	<table id="tbl_list" class='responstable'>
+  		<tbody>
+		</tbody>
+	</table>
+</div>
+</body>
+</html>
+
